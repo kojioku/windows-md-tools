@@ -6,7 +6,7 @@ no Windows release of their own, made with GitHub Actions and MSYS2 / MinGW-w64.
 | Tool | Workflow | Status |
 |---|---|---|
 | DSSP 3.x (`mkdssp`, [cmbi/hssp](https://github.com/cmbi/hssp)) | `.github/workflows/dssp.yml` | first build |
-| PLUMED kernel (DLL) | planned | — |
+| PLUMED kernel (DLL) and `plumed` | `.github/workflows/plumed.yml` | first build |
 | GROMACS with the PLUMED interface | planned | — |
 
 **These builds are unofficial and come with no warranty.** They are not made, checked or

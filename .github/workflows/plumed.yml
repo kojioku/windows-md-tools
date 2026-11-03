@@ -1,0 +1,101 @@
+name: plumed-windows
+
+# The PLUMED kernel (libplumedKernel.dll) and the plumed program for Windows,
+# built with MSYS2 / MinGW-w64 (UCRT64). First step towards an MD engine on
+# Windows that can read plumed.dat; this workflow only builds and checks PLUMED
+# itself (plumed driver on a small trajectory, no MD engine).
+
+on:
+  push:
+    branches: [main]
+    paths: ["plumed/**", "scripts/**", ".github/workflows/plumed.yml"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "plumed/plumed2 tag to build"
+        default: "v2.10.2"
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 240
+    defaults:
+      run:
+        shell: msys2 {0}
+    env:
+      PLUMED_TAG: ${{ github.event.inputs.tag || 'v2.10.2' }}
+      PREFIX: ${{ github.workspace }}/plumed-win
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            git make zip unzip diffutils
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-pkgconf
+            mingw-w64-ucrt-x86_64-zlib
+            mingw-w64-ucrt-x86_64-openblas
+            mingw-w64-ucrt-x86_64-fftw
+
+      - name: Fetch source
+        run: |
+          git clone --depth 1 --branch "$PLUMED_TAG" https://github.com/plumed/plumed2.git plumed2
+          git -C plumed2 log -1 --format='%H %ad %s' | tee plumed_commit.txt
+
+      - name: Build
+        run: |
+          cd plumed2
+          set +e
+          bash ../plumed/build.sh > ../build.log 2>&1
+          rc=$?
+          set -e
+          tail -80 ../build.log
+          if [ $rc -ne 0 ]; then
+            echo "::group::error lines"
+            grep -nE "error:|Error [0-9]+|undefined reference|No rule to make|cannot find|not declared" ../build.log | head -100 || true
+            echo "::endgroup::"
+            exit 1
+          fi
+        env:
+          PLUMED_PREFIX: ${{ env.PREFIX }}
+
+      - name: Bundle runtime DLLs
+        run: bash scripts/bundle_dlls.sh "$PREFIX"
+
+      - name: Smoke test (no MSYS2 on PATH)
+        shell: pwsh
+        run: ./plumed/smoke.ps1 -Prefix "$env:PREFIX" -Out smoke-out
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: plumed-build-logs
+          retention-days: 1
+          if-no-files-found: ignore
+          path: |
+            build.log
+            plumed_commit.txt
+            plumed2/config.log
+            smoke-out
+
+      - name: Package
+        run: |
+          PREFIX="$(cygpath -u "$PREFIX")"
+          mkdir -p "$PREFIX/licenses/plumed"
+          cp plumed2/COPYING.LESSER "$PREFIX/licenses/plumed/"
+          cp plumed_commit.txt "$PREFIX/SOURCE-COMMIT.txt"
+          cp plumed/README.md "$PREFIX/README.md"
+          cp NOTICE.md "$PREFIX/NOTICE.md"
+          cd "$GITHUB_WORKSPACE" && zip -qr "plumed-${PLUMED_TAG}-win64.zip" plumed-win
+          unzip -l "plumed-${PLUMED_TAG}-win64.zip" | grep -qi "libplumedKernel"
+          ls -la "plumed-${PLUMED_TAG}-win64.zip"
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: plumed-win64
+          retention-days: 1
+          path: plumed-*-win64.zip
