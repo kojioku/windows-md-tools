@@ -5,10 +5,8 @@ name: plumed-windows
 # Windows that can read plumed.dat; this workflow only builds and checks PLUMED
 # itself (plumed driver on a small trajectory, no MD engine).
 
+# Started by hand only (gh workflow run / the Actions tab): a push must not start a build.
 on:
-  push:
-    branches: [main]
-    paths: ["plumed/**", "scripts/**", ".github/workflows/plumed.yml"]
   workflow_dispatch:
     inputs:
       tag:
@@ -48,6 +46,7 @@ jobs:
       - name: Build
         run: |
           cd plumed2
+          bash ../plumed/patch.sh 2>&1 | tee ../patch.log
           set +e
           bash ../plumed/build.sh > ../build.log 2>&1
           rc=$?
@@ -78,6 +77,7 @@ jobs:
           if-no-files-found: ignore
           path: |
             build.log
+            patch.log
             plumed_commit.txt
             plumed2/config.log
             smoke-out

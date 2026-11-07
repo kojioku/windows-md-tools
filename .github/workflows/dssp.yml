@@ -4,10 +4,8 @@ name: dssp-windows
 # DSSP 3.x, not 4.x: tools that read the classic DSSP 2/3 output through
 # `mkdssp -i file.pdb` (e.g. vermouth / martinize2) cannot drive 4.x.
 
+# Started by hand only (gh workflow run / the Actions tab): a push must not start a build.
 on:
-  push:
-    branches: [main]
-    paths: ["dssp/**", "scripts/**", ".github/workflows/dssp.yml"]
   workflow_dispatch:
     inputs:
       tag:
