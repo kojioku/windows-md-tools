@@ -23,7 +23,9 @@ done
 ./configure --prefix="$DSSP_PREFIX" \
     --with-boost=/ucrt64 --with-boost-libdir=/ucrt64/lib "${skip[@]}" \
     CXXFLAGS="-O2 -DBOOST_TIMER_ENABLE_DEPRECATED"
-make -j4 mkdssp
+# automake names the target with $(EXEEXT): on MinGW it is mkdssp.exe (run 42422872265:
+# "No rule to make target 'mkdssp'")
+make -j4 mkdssp.exe
 mkdir -p "$DSSP_PREFIX/bin"
 cp mkdssp.exe "$DSSP_PREFIX/bin/" 2>/dev/null || cp src/mkdssp.exe "$DSSP_PREFIX/bin/"
 "$DSSP_PREFIX/bin/mkdssp.exe" --version
