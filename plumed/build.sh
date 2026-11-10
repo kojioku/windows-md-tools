@@ -12,8 +12,14 @@ export PLUMED_ROOT="$(cygpath -m "$PWD")"
 ./configure --prefix="$PLUMED_PREFIX" \
     --disable-mpi --disable-python --disable-doc --disable-libsearch \
     --enable-modules=all \
-    CXX=g++ CC=gcc LIBS="-lopenblas -lfftw3 -lz" \
-    CPPFLAGS="-D_USE_MATH_DEFINES"
+    CXX=g++ CC=gcc LIBS="-lopenblas -lfftw3 -lz -ldl" \
+    CPPFLAGS="-D_USE_MATH_DEFINES" \
+    SOEXT=dll LDSHARED="g++ -shared"
+# The kernel DLL (libplumedKernel.dll) is what an MD engine loads at run time (PLUMED_KERNEL).
+# Run 42764562956 built and installed everything but only static libraries: MinGW has no dlopen,
+# so configure disabled __PLUMED_HAS_DLOPEN and left SOEXT empty. dlfcn-win32 (MSYS2's
+# mingw-w64-ucrt-x86_64-dlfcn, MIT; dlopen on top of LoadLibrary) provides -ldl; SOEXT and
+# LDSHARED tell configure how to make a DLL.
 # _USE_MATH_DEFINES: MinGW's <cmath> defines M_PI only with it under -std=c++17 (run 42422874267:
 # "'M_PI' was not declared" in the membranefusion module).
 # -k: keep going past a failing file so that one run lists every error, not only the first directory's.

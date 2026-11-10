@@ -89,9 +89,9 @@ jobs:
           cp dssp_commit.txt "$PREFIX/SOURCE-COMMIT.txt"
           cp dssp/README.md "$PREFIX/README.md"
           cp NOTICE.md "$PREFIX/NOTICE.md"
-          cd "$GITHUB_WORKSPACE" && zip -qr "dssp-${HSSP_TAG}-win64.zip" dssp-win
-          unzip -l "dssp-${HSSP_TAG}-win64.zip" | grep -q "dssp-win/bin/mkdssp.exe"
-          ls -la "dssp-${HSSP_TAG}-win64.zip"
+          cd "$GITHUB_WORKSPACE" && zip -qr "dssp-${DSSP_TAG}-win64.zip" dssp-win
+          unzip -l "dssp-${DSSP_TAG}-win64.zip" | grep -q "dssp-win/bin/mkdssp.exe"
+          ls -la "dssp-${DSSP_TAG}-win64.zip"
 
       - uses: actions/upload-artifact@v5
         with:

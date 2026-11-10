@@ -37,6 +37,7 @@ jobs:
             mingw-w64-ucrt-x86_64-zlib
             mingw-w64-ucrt-x86_64-openblas
             mingw-w64-ucrt-x86_64-fftw
+            mingw-w64-ucrt-x86_64-dlfcn
 
       - name: Fetch source
         run: |
