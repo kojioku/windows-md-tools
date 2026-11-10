@@ -92,7 +92,7 @@ jobs:
           cp plumed/README.md "$PREFIX/README.md"
           cp NOTICE.md "$PREFIX/NOTICE.md"
           cd "$GITHUB_WORKSPACE" && zip -qr "plumed-${PLUMED_TAG}-win64.zip" plumed-win
-          unzip -l "plumed-${PLUMED_TAG}-win64.zip" | grep -qi "libplumedKernel"
+          unzip -l "plumed-${PLUMED_TAG}-win64.zip" | grep -i "libplumedKernel" >/dev/null
           ls -la "plumed-${PLUMED_TAG}-win64.zip"
 
       - uses: actions/upload-artifact@v5
