@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Build mkdssp from a cmbi/hssp checkout (run from inside it) with MSYS2 UCRT64.
+# Build mkdssp from a cmbi/dssp checkout (run from inside it) with MSYS2 UCRT64.
+# (cmbi/hssp 3.1.x no longer carries DSSP: its only programs are mkhssp and hsspconv, run 42748657812.)
 # Only the mkdssp program is built and installed into $DSSP_PREFIX/bin.
 set -euxo pipefail
 : "${DSSP_PREFIX:?set DSSP_PREFIX}"
@@ -8,7 +9,7 @@ DSSP_PREFIX="$(cygpath -u "$DSSP_PREFIX")"   # the runner hands a Windows path
 # What MSYS2's Boost actually ships (the log of the next failure starts here)
 ls /ucrt64/lib/libboost_* | sed 's|.*/||' | sort | tr '\n' ' '; echo
 # Boost.Regex (1.76+) and Boost.System (1.69+) are header-only, and MSYS2 no longer ships a
-# libboost_regex / libboost_system to link. hssp's configure still looks for them, and
+# libboost_regex / libboost_system to link. DSSP's configure still looks for them, and
 # autoconf-archive's AX_BOOST_REGEX then fails with a stale message ("Could not link against
 # boost_program_options-mt", run 42320443487). Skip the check for a library that is not there;
 # the header-only code needs no -l.
@@ -23,9 +24,7 @@ done
 ./configure --prefix="$DSSP_PREFIX" \
     --with-boost=/ucrt64 --with-boost-libdir=/ucrt64/lib "${skip[@]}" \
     CXXFLAGS="-O2 -DBOOST_TIMER_ENABLE_DEPRECATED"
-# automake names the target with $(EXEEXT): on MinGW it is mkdssp.exe (run 42422872265:
-# "No rule to make target 'mkdssp'")
-make -j4 mkdssp.exe
+make -j4 mkdssp$(sed -n 's/^EXEEXT = //p' Makefile)
 mkdir -p "$DSSP_PREFIX/bin"
 cp mkdssp.exe "$DSSP_PREFIX/bin/" 2>/dev/null || cp src/mkdssp.exe "$DSSP_PREFIX/bin/"
 "$DSSP_PREFIX/bin/mkdssp.exe" --version

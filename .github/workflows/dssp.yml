@@ -1,6 +1,6 @@
 name: dssp-windows
 
-# mkdssp (DSSP 3.x, cmbi/hssp) for Windows, built with MSYS2 / MinGW-w64 (UCRT64).
+# mkdssp (DSSP 3.x, cmbi/dssp) for Windows, built with MSYS2 / MinGW-w64 (UCRT64).
 # DSSP 3.x, not 4.x: tools that read the classic DSSP 2/3 output through
 # `mkdssp -i file.pdb` (e.g. vermouth / martinize2) cannot drive 4.x.
 
@@ -9,8 +9,8 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "cmbi/hssp tag to build"
-        default: "3.1.5"
+        description: "cmbi/dssp tag to build"
+        default: "3.1.4"
 
 jobs:
   build:
@@ -20,7 +20,7 @@ jobs:
       run:
         shell: msys2 {0}
     env:
-      HSSP_TAG: ${{ github.event.inputs.tag || '3.1.5' }}
+      DSSP_TAG: ${{ github.event.inputs.tag || '3.1.4' }}
       PREFIX: ${{ github.workspace }}/dssp-win
     steps:
       - uses: actions/checkout@v5
@@ -39,12 +39,12 @@ jobs:
 
       - name: Fetch source
         run: |
-          git clone --depth 1 --branch "$HSSP_TAG" https://github.com/cmbi/hssp.git hssp
-          git -C hssp log -1 --format='%H %ad %s' | tee hssp_commit.txt
+          git clone --depth 1 --branch "$DSSP_TAG" https://github.com/cmbi/dssp.git dssp-src
+          git -C dssp-src log -1 --format='%H %ad %s' | tee dssp_commit.txt
 
       - name: Build
         run: |
-          cd hssp
+          cd dssp-src
           # Keep the whole log (a failing target's message is often far from the end)
           set +e
           bash ../dssp/build.sh > ../build.log 2>&1
@@ -76,17 +76,17 @@ jobs:
           if-no-files-found: ignore
           path: |
             build.log
-            hssp_commit.txt
-            hssp/config.log
+            dssp_commit.txt
+            dssp-src/config.log
             smoke-out
 
       - name: Package
         run: |
           PREFIX="$(cygpath -u "$PREFIX")"
           mkdir -p "$PREFIX/licenses/dssp"
-          cp hssp/COPYING hssp/LICENSE_1_0.txt hssp/AUTHORS "$PREFIX/licenses/dssp/"
+          cp dssp-src/COPYING dssp-src/LICENSE_1_0.txt dssp-src/AUTHORS "$PREFIX/licenses/dssp/"
           test -n "$(ls "$PREFIX/licenses/dssp")"
-          cp hssp_commit.txt "$PREFIX/SOURCE-COMMIT.txt"
+          cp dssp_commit.txt "$PREFIX/SOURCE-COMMIT.txt"
           cp dssp/README.md "$PREFIX/README.md"
           cp NOTICE.md "$PREFIX/NOTICE.md"
           cd "$GITHUB_WORKSPACE" && zip -qr "dssp-${HSSP_TAG}-win64.zip" dssp-win

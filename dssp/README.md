@@ -6,7 +6,7 @@ or call the program by its full path.
     mkdssp --version
     mkdssp -i protein.pdb > protein.dss
 
-Built from https://github.com/cmbi/hssp at the tag in `SOURCE-COMMIT.txt`, unmodified. DSSP 3.x
+Built from https://github.com/cmbi/dssp at the tag in `SOURCE-COMMIT.txt`, unmodified. DSSP 3.x
 writes the classic DSSP 2/3 table that programs calling `mkdssp -i` (for example
 vermouth / martinize2) read; DSSP 4.x has a different command line and output and cannot
 stand in for it.
