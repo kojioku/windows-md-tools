@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# Build mkdssp from a cmbi/dssp checkout (run from inside it) with MSYS2 UCRT64.
-# (cmbi/hssp 3.1.x no longer carries DSSP: its only programs are mkhssp and hsspconv, run 42748657812.)
+# Build mkdssp from a DSSP 3.x checkout (run from inside it) with MSYS2 UCRT64: cmbi/hssp 3.0.0 by
+# default, the version vermouth (martinize2) is tested with; other versions make martinize2 warn
+# "DSSP-version", which counts against its -maxwarn. cmbi/dssp 3.1.x builds the same way (it reports
+# 3.1.2, run 42764560398). cmbi/hssp 3.1.x no longer carries mkdssp at all (run 42748657812).
 # Only the mkdssp program is built and installed into $DSSP_PREFIX/bin.
 set -euxo pipefail
 : "${DSSP_PREFIX:?set DSSP_PREFIX}"

@@ -8,9 +8,12 @@ name: dssp-windows
 on:
   workflow_dispatch:
     inputs:
+      repo:
+        description: "GitHub repository with the DSSP 3.x source"
+        default: "cmbi/hssp"
       tag:
-        description: "cmbi/dssp tag to build"
-        default: "3.1.4"
+        description: "tag to build (3.0.0 is the version vermouth / martinize2 is tested with)"
+        default: "3.0.0"
 
 jobs:
   build:
@@ -20,7 +23,8 @@ jobs:
       run:
         shell: msys2 {0}
     env:
-      DSSP_TAG: ${{ github.event.inputs.tag || '3.1.4' }}
+      DSSP_REPO: ${{ github.event.inputs.repo || 'cmbi/hssp' }}
+      DSSP_TAG: ${{ github.event.inputs.tag || '3.0.0' }}
       PREFIX: ${{ github.workspace }}/dssp-win
     steps:
       - uses: actions/checkout@v5
@@ -39,8 +43,8 @@ jobs:
 
       - name: Fetch source
         run: |
-          git clone --depth 1 --branch "$DSSP_TAG" https://github.com/cmbi/dssp.git dssp-src
-          git -C dssp-src log -1 --format='%H %ad %s' | tee dssp_commit.txt
+          git clone --depth 1 --branch "$DSSP_TAG" "https://github.com/$DSSP_REPO.git" dssp-src
+          { echo "$DSSP_REPO $DSSP_TAG"; git -C dssp-src log -1 --format='%H %ad %s'; } | tee dssp_commit.txt
 
       - name: Build
         run: |
