@@ -7,6 +7,10 @@ $ErrorActionPreference = "Stop"
 New-Item -ItemType Directory -Force -Path $Out | Out-Null
 $env:PATH = "$Prefix\bin;$Prefix\lib;C:\Windows\System32;C:\Windows"
 $exe = Join-Path $Prefix "bin\plumed.exe"
+# plumed writes its banner to stderr. With "Stop", PowerShell turns each stderr line of a native
+# program redirected by 2>&1 into a terminating error (run 42834776836 stopped in the middle of the
+# driver's banner), so the native calls run under "Continue" and the exit codes are checked below.
+$ErrorActionPreference = "Continue"
 $ver = & $exe info --version 2>&1 | Out-String
 $ver | Set-Content "$Out\version.txt"
 if ($LASTEXITCODE -ne 0) { throw "plumed info --version failed: $ver" }
@@ -15,6 +19,7 @@ Push-Location $Out
 & $exe driver --plumed plumed.dat --ixyz two_atoms.xyz --length-units A 2>&1 | Set-Content driver.log
 $rc = $LASTEXITCODE
 Pop-Location
+$ErrorActionPreference = "Stop"
 if ($rc -ne 0) { throw "plumed driver failed: $(Get-Content $Out\driver.log -Raw)" }
 $vals = Get-Content "$Out\COLVAR" | Where-Object { $_ -notmatch '^#' } | ForEach-Object { [double](($_ -split '\s+' | Where-Object { $_ })[1]) }
 Write-Host "PLUMED $($ver.Trim()); distances [nm]: $($vals -join ', ')"
