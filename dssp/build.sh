@@ -23,7 +23,10 @@ done
 # MSYS2's Boost libraries carry the -mt suffix; point the AX_BOOST_* macros at them
 ./configure --prefix="$DSSP_PREFIX" \
     --with-boost=/ucrt64 --with-boost-libdir=/ucrt64/lib "${skip[@]}" \
-    CXXFLAGS="-O2 -DBOOST_TIMER_ENABLE_DEPRECATED"
+    CXXFLAGS="-O2 -DBOOST_TIMER_ENABLE_DEPRECATED -std=c++14"
+# -std=c++14: DSSP's Makefile.am sets -std=c++11 in AM_CPPFLAGS, but MSYS2's Boost.Math needs C++14
+# (std::remove_extent_t etc., run 42761817875). CXXFLAGS comes later on the compile line, and gcc
+# takes the last -std. Not C++17: the 2019 code may use what C++17 removed.
 make -j4 mkdssp$(sed -n 's/^EXEEXT = //p' Makefile)
 mkdir -p "$DSSP_PREFIX/bin"
 cp mkdssp.exe "$DSSP_PREFIX/bin/" 2>/dev/null || cp src/mkdssp.exe "$DSSP_PREFIX/bin/"

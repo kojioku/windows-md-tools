@@ -73,7 +73,7 @@ jobs:
         uses: actions/upload-artifact@v5
         with:
           name: plumed-build-logs
-          retention-days: 1
+          retention-days: 7   # a run is often read days later (run 42422874267's log had expired)
           if-no-files-found: ignore
           path: |
             build.log

@@ -3,7 +3,12 @@
 # serial (no MPI), no Python wrapper, no documentation. Installs into $PLUMED_PREFIX.
 set -euxo pipefail
 : "${PLUMED_PREFIX:?set PLUMED_PREFIX}"
-PLUMED_PREFIX="$(cygpath -u "$PLUMED_PREFIX")"   # the runner hands a Windows path
+# Mixed paths (D:/a/...): MSYS make accepts them and so do the native programs that the build runs
+# and that get installed. A Unix-style path (/d/a/...) is baked into plumed.exe as its root and
+# cannot be opened by it (run 42761822532: "directory iterator cannot open directory
+# [/d/a/.../plumed2/]" when make ran plumed gen_json).
+PLUMED_PREFIX="$(cygpath -m "$PLUMED_PREFIX")"
+export PLUMED_ROOT="$(cygpath -m "$PWD")"
 ./configure --prefix="$PLUMED_PREFIX" \
     --disable-mpi --disable-python --disable-doc --disable-libsearch \
     --enable-modules=all \
