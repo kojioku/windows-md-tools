@@ -49,6 +49,8 @@ jobs:
       - name: Build
         run: |
           cd dssp-src
+          # Source fixes for this tag, if any (dssp/patch-<tag>.sh). Each fix checks its count.
+          if [ -f "../dssp/patch-$DSSP_TAG.sh" ]; then bash "../dssp/patch-$DSSP_TAG.sh" 2>&1 | tee ../patch.log; fi
           # Keep the whole log (a failing target's message is often far from the end)
           set +e
           bash ../dssp/build.sh > ../build.log 2>&1
@@ -81,6 +83,7 @@ jobs:
           path: |
             build.log
             dssp_commit.txt
+            patch.log
             dssp-src/config.log
             smoke-out
 

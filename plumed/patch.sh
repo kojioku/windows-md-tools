@@ -15,9 +15,28 @@ replace() {   # replace FILE COUNT OLD NEW
   echo "patch.sh: $file: $got line(s) fixed"
 }
 
+replace_line() {   # replace_line FILE COUNT OLDLINE NEWLINE  (whole lines only)
+  local file=$1 want=$2 old=$3 new=$4 got
+  got=$(grep -cxF -- "$old" "$file" || true)
+  if [ "$got" != "$want" ]; then
+    echo "patch.sh: expected $want whole line(s) '$old' in $file, found $got" >&2
+    exit 1
+  fi
+  OLD="$old" NEW="$new" perl -pi -e 'chomp; $_ = $ENV{NEW} if $_ eq $ENV{OLD}; $_ .= "\n"' "$file"
+  echo "patch.sh: $file: $got whole line(s) fixed"
+}
+
 # 1. configure's "filesystem library" check builds a std::string from a std::filesystem::path.
 #    On Windows path::value_type is wchar_t, so there is no such conversion and the check fails
 #    ("C++17 filesystem library not supported", run 42221678678). PLUMED's own code already uses
 #    .string() (src/tools/Tools.cpp, Tools::ls); only the check needs it.
 replace configure    3 'std::string(dir_entry.path().filename())' 'dir_entry.path().filename().string()'
 replace configure.ac 1 'std::string(dir_entry.path().filename())' 'dir_entry.path().filename().string()'
+
+# 2. The wrapper library (libplumed.dll) is linked without $(DYNAMIC_LIBS), the kernel with it. On
+#    Linux a shared object may leave symbols undefined; a Windows DLL may not, so it failed on dlopen /
+#    dlsym / dlclose / dlerror (run 42772685602). Only the wrapper rule's line is matched (the kernel
+#    rule's line is longer).
+replace_line src/lib/Makefile 1 \
+  $'\t$(LDSHARED) -o $@ $^ $(SONAME_OPTION),"$(SONAME_INSTALL_PATH)$(notdir $@)"' \
+  $'\t$(LDSHARED) -o $@ $^ $(SONAME_OPTION),"$(SONAME_INSTALL_PATH)$(notdir $@)" $(DYNAMIC_LIBS)'
