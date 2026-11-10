@@ -25,6 +25,10 @@ export PLUMED_ROOT="$(cygpath -m "$PWD")"
 # -k: keep going past a failing file so that one run lists every error, not only the first directory's.
 make -j4 -k
 make install
+# Windows looks for a DLL next to the program (and on PATH), not in lib/: plumed.exe could not
+# start with the kernel in lib/ (run 42816531356). Keep both DLLs in bin/, where the DLL bundler
+# also walks their imports; an MD engine is given bin/libplumedKernel.dll via PLUMED_KERNEL.
+mv "$PLUMED_PREFIX"/lib/libplumedKernel.dll "$PLUMED_PREFIX"/lib/libplumed.dll "$PLUMED_PREFIX/bin/"
 ls -la "$PLUMED_PREFIX/bin" "$PLUMED_PREFIX/lib" || true
 # the kernel the MD engines load (PLUMED_KERNEL); its Windows name is what we look for
 find "$PLUMED_PREFIX" -iname '*plumedKernel*' | tee kernel_files.txt

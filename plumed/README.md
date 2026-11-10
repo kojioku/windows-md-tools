@@ -8,5 +8,5 @@ for MinGW (`plumed/patch.sh` in the build repository); PLUMED's own source is un
     plumed info --version
     plumed driver --plumed plumed.dat --ixyz traj.xyz
 
-An MD engine loads the kernel through the environment variable `PLUMED_KERNEL` (the full path
-of the kernel library). Licence: GNU LGPL v3 (`licenses/plumed/COPYING.LESSER`); see `NOTICE.md`.
+An MD engine loads the kernel through the environment variable `PLUMED_KERNEL`: the full path
+of `bin\libplumedKernel.dll`. Licence: GNU LGPL v3 (`licenses/plumed/COPYING.LESSER`); see `NOTICE.md`.
