@@ -1,0 +1,172 @@
+name: gromacs-windows
+
+# GROMACS for Windows, MSVC + CUDA, with the PLUMED interface (mdrun -plumed) that the
+# upstream CMake refuses on Windows, enabled with dlfcn-win32 (gromacs/patch.sh). The PLUMED
+# kernel itself is the plumed workflow's libplumedKernel.dll (MinGW). The version string says
+# "-moldeck" so that the build never passes for an official GROMACS.
+
+# Started by hand only (gh workflow run / the Actions tab): a push must not start a build.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "GROMACS release (ftp.gromacs.org)"
+        default: "2025.5"
+      cuda:
+        description: "CUDA toolkit (network installer, only the parts GROMACS needs)"
+        default: "12.8.1"
+      plumed_run:
+        description: "plumed-windows run whose plumed-win64 artifact the smoke test loads"
+        default: "43015387410"
+
+permissions:
+  contents: read
+  actions: read          # download-artifact from the plumed-windows run
+
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 350
+    env:
+      GMX_VERSION: ${{ github.event.inputs.version || '2025.5' }}
+      CUDA_VER: ${{ github.event.inputs.cuda || '12.8.1' }}
+      PREFIX: ${{ github.workspace }}\gromacs-win
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: CUDA toolkit
+        shell: pwsh
+        run: |
+          $mm = ($env:CUDA_VER -split '\.')[0..1] -join '.'
+          $url = "https://developer.download.nvidia.com/compute/cuda/$env:CUDA_VER/network_installers/cuda_$($env:CUDA_VER)_windows_network.exe"
+          curl.exe -fsSL -o cuda.exe $url
+          $parts = @("nvcc", "cudart", "cufft", "cufft_dev", "visual_studio_integration") | ForEach-Object { "$($_)_$mm" }
+          $p = Start-Process -Wait -PassThru -FilePath .\cuda.exe -ArgumentList (@("-s") + $parts)
+          $root = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v$mm"
+          if (!(Test-Path "$root\bin\nvcc.exe")) { throw "nvcc was not installed (installer exit $($p.ExitCode))" }
+          & "$root\bin\nvcc.exe" --version
+          "CUDA_PATH=$root" >> $env:GITHUB_ENV
+          "$root\bin" >> $env:GITHUB_PATH
+
+      - name: fftw3 and dlfcn-win32 (vcpkg)
+        shell: pwsh
+        run: |
+          vcpkg install fftw3:x64-windows dlfcn-win32:x64-windows
+          if ($LASTEXITCODE -ne 0) { throw "vcpkg failed" }
+          $inst = "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows"
+          Get-ChildItem "$inst\bin" | Select-Object -ExpandProperty Name
+          "VCPKG_INST=$inst" >> $env:GITHUB_ENV
+
+      - name: Fetch source and patch
+        shell: bash
+        run: |
+          curl -fsSL -o gromacs.tar.gz "https://ftp.gromacs.org/gromacs/gromacs-${GMX_VERSION}.tar.gz"
+          sha256sum gromacs.tar.gz | tee gromacs_sha256.txt
+          tar -xzf gromacs.tar.gz
+          cd "gromacs-${GMX_VERSION}"
+          bash ../gromacs/patch.sh 2>&1 | tee ../patch.log
+
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Configure
+        shell: pwsh
+        run: |
+          cmake -S "gromacs-$env:GMX_VERSION" -B build -G Ninja `
+            -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$env:PREFIX" `
+            -DCMAKE_PREFIX_PATH="$env:VCPKG_INST" `
+            -DBUILD_SHARED_LIBS=OFF -DGMX_GPU=CUDA -DGMX_SIMD=AVX2_256 `
+            -DGMX_FFT_LIBRARY=fftw3 -DGMX_BUILD_OWN_FFTW=OFF `
+            -DFFTWF_LIBRARY="$env:VCPKG_INST\lib\fftw3f.lib" -DFFTWF_INCLUDE_DIR="$env:VCPKG_INST\include" `
+            -DGMX_USE_PLUMED=ON -DGMX_VERSION_STRING_OF_FORK=moldeck `
+            -DGMX_BUILD_HELP=OFF -DGMX_INSTALL_NBLIB_API=OFF -DGMXAPI=OFF `
+            -DREGRESSIONTEST_DOWNLOAD=OFF -DGMX_DEFAULT_SUFFIX=ON *> configure.log
+          $rc = $LASTEXITCODE
+          Get-Content configure.log -Tail 60
+          if ($rc -ne 0) { Select-String -Path configure.log -Pattern "Error|error" | Select-Object -First 40; throw "configure failed" }
+          Select-String -Path configure.log -Pattern "PLUMED|CUDA|FFTW|SIMD" | Select-Object -First 30 | ForEach-Object { $_.Line }
+
+      - name: Build
+        shell: pwsh
+        run: |
+          cmake --build build --parallel 4 *> build.log
+          $rc = $LASTEXITCODE
+          Get-Content build.log -Tail 40
+          if ($rc -ne 0) { Select-String -Path build.log -Pattern "error|FAILED" | Select-Object -First 60 | ForEach-Object { $_.Line }; throw "build failed" }
+          cmake --install build *> install.log
+          if ($LASTEXITCODE -ne 0) { Get-Content install.log -Tail 40; throw "install failed" }
+
+      - name: Bundle runtime DLLs
+        shell: pwsh
+        run: |
+          $bin = "$env:PREFIX\bin"
+          $search = @("$env:CUDA_PATH\bin", "$env:VCPKG_INST\bin",
+                      "$env:VCToolsRedistDir\x64\Microsoft.VC143.CRT", "$env:VCToolsRedistDir\x64\Microsoft.VC143.OpenMP")
+          $done = @{}
+          $queue = New-Object System.Collections.Queue
+          Get-ChildItem "$bin\*.exe" | ForEach-Object { $queue.Enqueue($_.FullName) }
+          while ($queue.Count) {
+            $f = $queue.Dequeue()
+            foreach ($dep in (dumpbin /nologo /dependents $f | Where-Object { $_ -match '^\s+\S+\.dll\s*$' } | ForEach-Object { $_.Trim() })) {
+              if ($done.ContainsKey($dep.ToLower())) { continue }
+              $done[$dep.ToLower()] = $true
+              $hit = $search | ForEach-Object { Join-Path $_ $dep } | Where-Object { Test-Path $_ } | Select-Object -First 1
+              if ($hit) { Copy-Item $hit $bin; Write-Output "bundled $dep"; $queue.Enqueue((Join-Path $bin $dep)) }
+            }
+          }
+          # MSVC runtime (redistributable): all of it, so that the package needs no VC++ redist installed
+          Copy-Item "$env:VCToolsRedistDir\x64\Microsoft.VC143.CRT\*.dll" $bin
+          Copy-Item "$env:VCToolsRedistDir\x64\Microsoft.VC143.OpenMP\*.dll" $bin
+
+      - name: PLUMED for Windows (plumed-windows artifact)
+        uses: actions/download-artifact@v4
+        with:
+          name: plumed-win64
+          run-id: ${{ github.event.inputs.plumed_run || '43015387410' }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: plumed-zip
+
+      - name: Smoke test (no MSVC / CUDA / vcpkg on PATH)
+        shell: pwsh
+        run: |
+          Expand-Archive -Path (Get-ChildItem plumed-zip\*.zip | Select-Object -First 1).FullName -DestinationPath plumed
+          $kernel = (Get-ChildItem -Recurse plumed -Filter "libplumedKernel.dll" | Select-Object -First 1).FullName
+          if (!$kernel) { throw "libplumedKernel.dll not in the plumed artifact" }
+          $gmx = (Get-ChildItem "$env:PREFIX\bin" -Filter "gmx*.exe" | Select-Object -First 1).FullName
+          pwsh -NoProfile -File gromacs\smoke.ps1 -Gmx $gmx -PlumedKernel $kernel -Data "$PWD\gromacs\data" -Work "$PWD\smoke"
+          if ($LASTEXITCODE -ne 0) { throw "smoke test failed" }
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: gromacs-build-logs
+          retention-days: 7
+          path: |
+            configure.log
+            build.log
+            install.log
+            patch.log
+            gromacs_sha256.txt
+            smoke/*.log
+            smoke/COLVAR
+            smoke/HILLS
+
+      - name: Package
+        shell: pwsh
+        run: |
+          Copy-Item gromacs\README.md "$env:PREFIX\README_windows-md-tools.md"
+          Copy-Item NOTICE.md "$env:PREFIX\NOTICE.md"
+          Copy-Item gromacs_sha256.txt "$env:PREFIX\SOURCE_SHA256.txt"
+          Copy-Item gromacs\patch.sh "$env:PREFIX\PATCHES_gromacs.sh"
+          Compress-Archive -Path "$env:PREFIX" -DestinationPath "gromacs-$($env:GMX_VERSION)-moldeck-cuda-win64.zip"
+          Get-Item "gromacs-$($env:GMX_VERSION)-moldeck-cuda-win64.zip" | Select-Object Name, Length
+
+      # Kept one day only: the modified GROMACS is not meant to be handed out from here (the
+      # zip is taken for testing and passed on individually, like the AmberTools build).
+      - uses: actions/upload-artifact@v5
+        with:
+          name: gromacs-cuda-win64
+          retention-days: 1
+          path: gromacs-*-moldeck-cuda-win64.zip

@@ -1,0 +1,5 @@
+# smoke test of mdrun -plumed: a distance, printed, and a well-tempered metadynamics on it
+# (the same kinds of lines as moldeck.cg.b22's plumed.dat, on two oxygen atoms of a water box)
+d: DISTANCE ATOMS=1,4
+metad: METAD ARG=d SIGMA=0.05 HEIGHT=0.1 PACE=10 BIASFACTOR=10 TEMP=300 FILE=HILLS
+PRINT ARG=d,metad.bias STRIDE=10 FILE=COLVAR
