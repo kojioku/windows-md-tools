@@ -40,10 +40,15 @@ jobs:
           $mm = ($env:CUDA_VER -split '\.')[0..1] -join '.'
           $url = "https://developer.download.nvidia.com/compute/cuda/$env:CUDA_VER/network_installers/cuda_$($env:CUDA_VER)_windows_network.exe"
           curl.exe -fsSL -o cuda.exe $url
-          $parts = @("nvcc", "cudart", "cufft", "cufft_dev", "visual_studio_integration") | ForEach-Object { "$($_)_$mm" }
+          # cuda_profiler_api: gpu_utils.cu includes cuda_profiler_api.h (run 43320106060 stopped there)
+          $parts = @("nvcc", "cudart", "cufft", "cufft_dev", "cuda_profiler_api", "visual_studio_integration") | ForEach-Object { "$($_)_$mm" }
           $p = Start-Process -Wait -PassThru -FilePath .\cuda.exe -ArgumentList (@("-s") + $parts)
           $root = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v$mm"
           if (!(Test-Path "$root\bin\nvcc.exe")) { throw "nvcc was not installed (installer exit $($p.ExitCode))" }
+          # every CUDA header GROMACS includes, checked now rather than hours into the build
+          foreach ($h in @("cuda_runtime.h", "cuda.h", "cufft.h", "cuda_profiler_api.h", "cub\device\device_scan.cuh")) {
+            if (!(Test-Path "$root\include\$h")) { throw "CUDA header missing after install: $h" }
+          }
           & "$root\bin\nvcc.exe" --version
           "CUDA_PATH=$root" >> $env:GITHUB_ENV
           "$root\bin" >> $env:GITHUB_PATH
