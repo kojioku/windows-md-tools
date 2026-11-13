@@ -170,6 +170,27 @@ jobs:
       - name: Package
         shell: pwsh
         run: |
+          # licence texts of everything in the zip (NOTICE.md says they are under licenses/)
+          $lic = "$env:PREFIX\licenses"
+          $copies = @(
+            @("gromacs-$env:GMX_VERSION\COPYING", "gromacs\COPYING"),
+            @("$env:VCPKG_INST\share\fftw3\copyright", "fftw\copyright"),
+            @("$env:VCPKG_INST\share\dlfcn-win32\copyright", "dlfcn-win32\copyright"))
+          foreach ($c in $copies) {
+            if (!(Test-Path $c[0])) { throw "licence text missing: $($c[0])" }
+            New-Item -ItemType Directory -Force -Path (Split-Path "$lic\$($c[1])") | Out-Null
+            Copy-Item $c[0] "$lic\$($c[1])"
+          }
+          New-Item -ItemType Directory -Force -Path "$lic\cuda", "$lic\msvc" | Out-Null
+          $eula = Get-ChildItem "$env:CUDA_PATH" -Filter "EULA.txt" -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($eula) { Copy-Item $eula.FullName "$lic\cuda\EULA.txt" } else { Write-Output "::warning::CUDA EULA.txt not found under $env:CUDA_PATH" }
+          @("cufft64_*.dll: NVIDIA CUDA Toolkit $env:CUDA_VER, redistributable under the CUDA EULA (Attachment A).",
+            "https://docs.nvidia.com/cuda/eula/") | Set-Content -Encoding ascii "$lic\cuda\README.txt"
+          @("vcruntime140*.dll, msvcp140*.dll, vcomp140.dll, concrt140.dll, vccorlib140.dll:",
+            "Microsoft Visual C++ runtime from Visual Studio 2022 ($env:VCToolsRedistDir),",
+            "distributable code under the Visual Studio licence terms.",
+            "https://visualstudio.microsoft.com/license-terms/") | Set-Content -Encoding ascii "$lic\msvc\README.txt"
+          Get-ChildItem -Recurse $lic | Select-Object -ExpandProperty FullName
           Copy-Item gromacs\README.md "$env:PREFIX\README_windows-md-tools.md"
           Copy-Item NOTICE.md "$env:PREFIX\NOTICE.md"
           Copy-Item gromacs_sha256.txt "$env:PREFIX\SOURCE_SHA256.txt"
