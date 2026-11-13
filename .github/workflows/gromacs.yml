@@ -124,7 +124,12 @@ jobs:
           Copy-Item "$env:VCToolsRedistDir\x64\Microsoft.VC143.CRT\*.dll" $bin
           Copy-Item "$env:VCToolsRedistDir\x64\Microsoft.VC143.OpenMP\*.dll" $bin
 
+      # Optional: the plumed-win64 zip is kept one day. Without it the smoke test runs the MD
+      # without -plumed and says so, and the package is still made (run 43373919165 built
+      # GROMACS and then stopped here on an expired artifact, uploading nothing).
       - name: PLUMED for Windows (plumed-windows artifact)
+        id: plumed
+        continue-on-error: true
         uses: actions/download-artifact@v4
         with:
           name: plumed-win64
@@ -135,9 +140,13 @@ jobs:
       - name: Smoke test (no MSVC / CUDA / vcpkg on PATH)
         shell: pwsh
         run: |
-          Expand-Archive -Path (Get-ChildItem plumed-zip\*.zip | Select-Object -First 1).FullName -DestinationPath plumed
-          $kernel = (Get-ChildItem -Recurse plumed -Filter "libplumedKernel.dll" | Select-Object -First 1).FullName
-          if (!$kernel) { throw "libplumedKernel.dll not in the plumed artifact" }
+          $kernel = ""
+          $zip = Get-ChildItem plumed-zip\*.zip -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($zip) {
+            Expand-Archive -Path $zip.FullName -DestinationPath plumed
+            $kernel = (Get-ChildItem -Recurse plumed -Filter "libplumedKernel.dll" | Select-Object -First 1).FullName
+          }
+          if (!$kernel) { Write-Output "::warning::no plumed-win64 artifact: the smoke test runs without -plumed" }
           $gmx = (Get-ChildItem "$env:PREFIX\bin" -Filter "gmx*.exe" | Select-Object -First 1).FullName
           pwsh -NoProfile -File gromacs\smoke.ps1 -Gmx $gmx -PlumedKernel $kernel -Data "$PWD\gromacs\data" -Work "$PWD\smoke"
           if ($LASTEXITCODE -ne 0) { throw "smoke test failed" }
